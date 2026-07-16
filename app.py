@@ -41,9 +41,9 @@ def mostrar_arbol_archivos(ruta_base):
                 with st.sidebar.expander(f"📁 {elemento}", expanded=False):
                     mostrar_arbol_archivos(ruta_completa)
             else:
-                st.sidebar.text(f"📄 {elemento}")
+                st.text(f"📄 {elemento}")
     except Exception:
-        st.sidebar.text("No se pudo leer el directorio raíz.")
+        st.text("No se pudo leer el directorio raíz.")
 
 mostrar_arbol_archivos(BASE_DIR)
 st.sidebar.markdown("---")
