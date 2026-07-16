@@ -1,10 +1,12 @@
 import os
 import time
-import glob
 from PIL import Image
 import streamlit as st
 import google.generativeai as genai
 from rembg import remove
+
+# --- FORZAR LA VERSIÓN V1 DE LA API DE GOOGLE PARA EVITAR ERRORES 404 V1BETA ---
+os.environ["API_VERSION"] = "v1"
 
 # Configuración de página universal
 st.set_page_config(page_title="Agencia Creativa IA Universal", page_icon="🚀", layout="wide")
@@ -12,7 +14,7 @@ st.set_page_config(page_title="Agencia Creativa IA Universal", page_icon="🚀",
 st.title("🤖 Ecosistema de Coworking - Agencia Creativa IA")
 st.subheader("Orquestador Multimodal Adaptable: Post, Historias y Banners a la Carta")
 
-# Barra lateral para credenciales
+# Barra lateral para credenciales y visor de archivos
 st.sidebar.header("🔑 Configuración")
 api_key = st.sidebar.text_input("Introduce tu Gemini API Key:", type="password")
 st.sidebar.markdown("[¿Cómo obtener una API Key gratis?](https://aistudio.google.com/)")
@@ -22,9 +24,38 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 INVENTORY_DIR = os.path.join(BASE_DIR, "00_INVENTORY_IMAGES")
 OUTPUT_DIR = os.path.join(BASE_DIR, "10_PROJECTS", "Campana_Automatizada")
 
-# Garantizar que la carpeta exista
+# Garantizar que las carpetas existan
 os.makedirs(INVENTORY_DIR, exist_ok=True)
 os.makedirs(OUTPUT_DIR, exist_ok=True)
+
+# --- VISOR EXPLORADOR DE ARCHIVOS EN VIVO (LADO IZQUIERDO) ---
+st.sidebar.markdown("---")
+st.sidebar.markdown("📁 **Explorador de Archivos en el Servidor:**")
+def mostrar_arbol_archivos(ruta_base):
+    try:
+        for elemento in sorted(os.listdir(ruta_base)):
+            if elemento.startswith('.') or elemento == "__pycache__":
+                continue
+            ruta_completa = os.path.join(ruta_base, elemento)
+            if os.path.isdir(ruta_completa):
+                with st.sidebar.expander(f"📁 {elemento}", expanded=False):
+                    mostrar_arbol_archivos(ruta_completa)
+            else:
+                st.sidebar.text(f"📄 {elemento}")
+    except Exception:
+        st.sidebar.text("No se pudo leer el directorio raíz.")
+
+mostrar_arbol_archivos(BASE_DIR)
+st.sidebar.markdown("---")
+
+# Escaneo directo de imágenes del inventario
+imagenes_locales = []
+if os.path.exists(INVENTORY_DIR):
+    for f in os.listdir(INVENTORY_DIR):
+        if f.lower().endswith(('.png', '.jpg', '.jpeg')) and not f.startswith('.'):
+            imagenes_locales.append(os.path.join(INVENTORY_DIR, f))
+
+st.sidebar.markdown(f"📦 **Inventario en la nube:** {len(imagenes_locales)} imágenes detectadas.")
 
 def cargar_markdown(ruta_relativa):
     ruta_completa = os.path.join(BASE_DIR, ruta_relativa)
@@ -35,25 +66,22 @@ def cargar_markdown(ruta_relativa):
 
 def llamar_gema_texto(prompt_sistema, entrada_usuario):
     ultimo_error = None
-    # Probamos los modelos principales de texto en cascada
-    for model_name in ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.0-flash", "gemini-1.5-flash"]:
-        for intento in range(3):
-            try:
-                model = genai.GenerativeModel(model_name=model_name, system_instruction=prompt_sistema)
-                response = model.generate_content(entrada_usuario)
-                return response.text
-            except Exception as e:
-                ultimo_error = e
-                # Si es un error de rate limit (429), esperamos y reintentamos con el mismo modelo
-                if "429" in str(e) or "quota" in str(e).lower() or "limit" in str(e).lower() or "exhausted" in str(e).lower():
-                    wait_time = (intento + 1) * 3
-                    st.warning(f"⏳ Límite de velocidad (429) con '{model_name}'. Esperando {wait_time}s para reintentar (Intento {intento + 1}/3)...")
-                    time.sleep(wait_time)
-                    continue
-                else:
-                    st.warning(f"⚠️ El modelo '{model_name}' falló. Detalle: {str(e)}. Probando con el siguiente...")
-                    break
-    st.error(f"❌ Todos los modelos de texto de Gemini fallaron. Último error: {str(ultimo_error)}")
+    # Usar estrictamente gemini-2.5-flash con reintentos para rate limits (429)
+    for intento in range(3):
+        try:
+            model = genai.GenerativeModel(model_name="gemini-2.5-flash", system_instruction=prompt_sistema)
+            response = model.generate_content(entrada_usuario)
+            return response.text
+        except Exception as e:
+            ultimo_error = e
+            if "429" in str(e) or "quota" in str(e).lower() or "limit" in str(e).lower() or "exhausted" in str(e).lower():
+                wait_time = (intento + 1) * 3
+                st.warning(f"⏳ Límite de velocidad (429) con 'gemini-2.5-flash'. Esperando {wait_time}s para reintentar (Intento {intento + 1}/3)...")
+                time.sleep(wait_time)
+                continue
+            else:
+                break
+    st.error(f"❌ Error con gemini-2.5-flash: {str(ultimo_error)}")
     raise ultimo_error
 
 # Cuadro de texto libre para cualquier canal o red social
@@ -61,15 +89,6 @@ idea_usuario = st.text_area(
     "💡 ¿Qué pieza publicitaria necesitas hoy?",
     placeholder="Ej: Necesito una imagen para mi historia en whatsapp, esta debe de ir vertical, la camioneta horizontal, con un fondo alusivo al trabajo en ram y que diga Ram 1200 chasis y que diga prueba de éxito..."
 )
-
-# Escaneo directo inmune a fallos de entorno virtualizado y case-insensitive
-imagenes_locales = []
-if os.path.exists(INVENTORY_DIR):
-    for f in os.listdir(INVENTORY_DIR):
-        if f.lower().endswith(('.png', '.jpg', '.jpeg')) and not f.startswith('.'):
-            imagenes_locales.append(os.path.join(INVENTORY_DIR, f))
-
-st.sidebar.markdown(f"📦 **Inventario en la nube:** {len(imagenes_locales)} imágenes detectadas.")
 
 if st.button("🚀 Iniciar Cadena Multimodal"):
     if not api_key:
@@ -105,25 +124,25 @@ if st.button("🚀 Iniciar Cadena Multimodal"):
             with st.status(f"Procesando formato: {tipo_formato}...", expanded=True) as status:
                 
                 # FASE 1: Director Creativo
-                st.write("👤 **[1/5] Executing:** Creative Director Pro...")
+                st.write("👤 **[1/5] Ejecutando:** Creative Director Pro...")
                 time.sleep(2)
                 kb_director = cargar_markdown("01_CREATIVE_DIRECTOR/creative_director_pro.md")
                 brief = llamar_gema_texto(kb_director + contexto_global, idea_usuario)
                 
                 # FASE 2: Diseñador Gráfico (Dirección de Arte adaptable)
-                st.write("🎨 **[2/5] Executing:** Graphic Designer Pro...")
+                st.write("🎨 **[2/5] Ejecutando:** Graphic Designer Pro...")
                 time.sleep(2)
                 kb_designer = cargar_markdown("02_GRAPHIC_DESIGNER/graphic_designer_pro.md")
                 arte = llamar_gema_texto(kb_designer + contexto_global, f"Define los colores y el estilo visual para un formato {tipo_formato} basado en: {idea_usuario}")
                 
                 # FASE 3: Copywriter Pro
-                st.write("✍️ **[3/5] Executing:** Copywriter Pro...")
+                st.write("✍️ **[3/5] Ejecutando:** Copywriter Pro...")
                 time.sleep(2)
                 kb_copy = cargar_markdown("06_COPYWRITER/copywriter_pro.md")
                 textos = llamar_gema_texto(kb_copy + contexto_global, f"Genera los copies y textos integrados exactos solicitados para este formato: {idea_usuario}")
                 
                 # FASE 4: Visual Automation Expert (Prompt del Fondo)
-                st.write("📐 **[4/5] Executing:** Visual Automation Expert...")
+                st.write("📐 **[4/5] Ejecutando:** Visual Automation Expert...")
                 time.sleep(2)
                 kb_visual = cargar_markdown("03_B_VISUAL_AUTOMATION/visual_automation_expert.md")
                 manifiesto_diseno = llamar_gema_texto(kb_visual + contexto_global, f"Escribe un prompt de generación de imagen para el FONDO comercial de la marca en relación {aspecto_ia}. Instrucciones: {idea_usuario}. No incluyas vehículos en la descripción.")
