@@ -1,5 +1,6 @@
 import os
 import glob
+import time
 from PIL import Image
 from io import BytesIO
 import streamlit as st
@@ -31,41 +32,63 @@ def cargar_markdown(ruta_relativa):
     return ""
 
 def llamar_gema_texto(client, prompt_sistema, entrada_usuario):
-    """Conexión estándar para las gemas estratégicas de texto con fallback robusto"""
+    """Conexión estándar para las gemas estratégicas de texto con fallback robusto y manejo de rate limits (429)"""
     ultimo_error = None
     for model_name in ["gemini-3.5-flash", "gemini-2.5-flash", "gemini-1.5-flash"]:
-        try:
-            response = client.models.generate_content(
-                model=model_name,
-                contents=entrada_usuario,
-                config=types.GenerateContentConfig(
-                    system_instruction=prompt_sistema
+        for intento in range(3):
+            try:
+                response = client.models.generate_content(
+                    model=model_name,
+                    contents=entrada_usuario,
+                    config=types.GenerateContentConfig(
+                        system_instruction=prompt_sistema
+                    )
                 )
-            )
-            return response.text
-        except Exception as e:
-            ultimo_error = e
-            st.warning(f"⚠️ El modelo '{model_name}' falló o no está disponible. Reintentando con el siguiente...")
-    st.error("❌ Todos los modelos de texto de Gemini fallaron al intentar procesar la solicitud.")
+                return response.text
+            except Exception as e:
+                ultimo_error = e
+                status_code = getattr(e, 'status_code', None) or getattr(e, 'code', None)
+                
+                # Si es un error de rate limit (429), esperamos y reintentamos con el mismo modelo
+                if status_code == 429 or "429" in str(e) or "quota" in str(e).lower() or "limit" in str(e).lower():
+                    wait_time = (intento + 1) * 3
+                    st.warning(f"⏳ Límite de velocidad (429) con '{model_name}'. Esperando {wait_time}s para reintentar (Intento {intento + 1}/3)...")
+                    time.sleep(wait_time)
+                    continue
+                else:
+                    # Si es otro tipo de error (como 400, 403, 404), mostramos el código y detalle, y pasamos al siguiente modelo
+                    st.warning(f"⚠️ El modelo '{model_name}' falló (Código: {status_code}). Detalle: {str(e)}. Probando con el siguiente...")
+                    break
+    st.error(f"❌ Todos los modelos de texto de Gemini fallaron. Último error: {str(ultimo_error)}")
     raise ultimo_error
 
 def llamar_gema_multimodal(client, prompt_sistema, entrada_texto, objeto_imagen):
-    """Conexión avanzada con el modelo para procesar la imagen del vehículo real con fallback robusto"""
+    """Conexión avanzada con el modelo para procesar la imagen del vehículo real con fallback y manejo de 429"""
     ultimo_error = None
     for model_name in ["gemini-3.5-flash", "gemini-2.5-flash", "gemini-1.5-flash"]:
-        try:
-            response = client.models.generate_content(
-                model=model_name,
-                contents=[entrada_texto, objeto_imagen],
-                config=types.GenerateContentConfig(
-                    system_instruction=prompt_sistema
+        for intento in range(3):
+            try:
+                response = client.models.generate_content(
+                    model=model_name,
+                    contents=[entrada_texto, objeto_imagen],
+                    config=types.GenerateContentConfig(
+                        system_instruction=prompt_sistema
+                    )
                 )
-            )
-            return response.text
-        except Exception as e:
-            ultimo_error = e
-            st.warning(f"⚠️ El modelo multimodal '{model_name}' falló o no está disponible. Reintentando con el siguiente...")
-    st.error("❌ Todos los modelos multimodales de Gemini fallaron al intentar procesar la solicitud.")
+                return response.text
+            except Exception as e:
+                ultimo_error = e
+                status_code = getattr(e, 'status_code', None) or getattr(e, 'code', None)
+                
+                if status_code == 429 or "429" in str(e) or "quota" in str(e).lower() or "limit" in str(e).lower():
+                    wait_time = (intento + 1) * 3
+                    st.warning(f"⏳ Límite de velocidad (429) con '{model_name}'. Esperando {wait_time}s para reintentar (Intento {intento + 1}/3)...")
+                    time.sleep(wait_time)
+                    continue
+                else:
+                    st.warning(f"⚠️ El modelo multimodal '{model_name}' falló (Código: {status_code}). Detalle: {str(e)}. Probando con el siguiente...")
+                    break
+    st.error(f"❌ Todos los modelos multimodales de Gemini fallaron. Último error: {str(ultimo_error)}")
     raise ultimo_error
 
 # 2. Entrada de la campaña publicitaria
