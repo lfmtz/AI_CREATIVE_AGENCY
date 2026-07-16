@@ -1,8 +1,10 @@
 import os
 import glob
 from PIL import Image
+from io import BytesIO
 import streamlit as st
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 
 # Configuración visual de la plataforma web
 st.set_page_config(page_title="Agencia IA - Motor Multimodal", page_icon="🚀", layout="wide")
@@ -28,22 +30,26 @@ def cargar_markdown(ruta_relativa):
             return f.read()
     return ""
 
-def llamar_gema_texto(prompt_sistema, entrada_usuario):
+def llamar_gema_texto(client, prompt_sistema, entrada_usuario):
     """Conexión estándar para las gemas estratégicas de texto"""
-    model = genai.GenerativeModel(
-        model_name="gemini-3.5-flash",
-        system_instruction=prompt_sistema
+    response = client.models.generate_content(
+        model="gemini-3.5-flash",
+        contents=entrada_usuario,
+        config=types.GenerateContentConfig(
+            system_instruction=prompt_sistema
+        )
     )
-    response = model.generate_content(entrada_usuario)
     return response.text
 
-def llamar_gema_multimodal(prompt_sistema, entrada_texto, objeto_imagen):
+def llamar_gema_multimodal(client, prompt_sistema, entrada_texto, objeto_imagen):
     """Conexión avanzada con el modelo para procesar la imagen del vehículo real"""
-    model = genai.GenerativeModel(
-        model_name="gemini-3.5-flash",
-        system_instruction=prompt_sistema
+    response = client.models.generate_content(
+        model="gemini-3.5-flash",
+        contents=[entrada_texto, objeto_imagen],
+        config=types.GenerateContentConfig(
+            system_instruction=prompt_sistema
+        )
     )
-    response = model.generate_content([entrada_texto, objeto_imagen])
     return response.text
 
 # 2. Entrada de la campaña publicitaria
@@ -71,8 +77,8 @@ if st.button("🚀 Iniciar Trabajo en Cadena Multimodal"):
     elif not idea_usuario:
         st.warning("Escribe una idea o promoción antes de ejecutar a los agentes.")
     else:
-        # Inicializar credenciales globales de Google
-        genai.configure(api_key=api_key)
+        # Inicializar credenciales globales de Google GenAI
+        client = genai.Client(api_key=api_key)
         os.makedirs(OUTPUT_DIR, exist_ok=True)
         
         # Cargar el contexto global corporativo compartido (.md)
@@ -87,22 +93,22 @@ if st.button("🚀 Iniciar Trabajo en Cadena Multimodal"):
             # FASE 1: Creative Director Pro
             st.write("👤 **[1/5] Ejecutando:** Creative Director Pro...")
             kb_director = cargar_markdown("01_CREATIVE_DIRECTOR/creative_director_pro.md")
-            brief = llamar_gema_texto(kb_director + contexto_global, idea_usuario)
+            brief = llamar_gema_texto(client, kb_director + contexto_global, idea_usuario)
             
             # FASE 2: Graphic Designer Pro
             st.write("👤 **[2/5] Ejecutando:** Graphic Designer Pro...")
             kb_designer = cargar_markdown("02_GRAPHIC_DESIGNER/graphic_designer_pro.md")
-            arte = llamar_gema_texto(kb_designer + contexto_global, f"Genera la dirección de arte basada en este Brief:\n\n{brief}")
+            arte = llamar_gema_texto(client, kb_designer + contexto_global, f"Genera la dirección de arte basada en este Brief:\n\n{brief}")
             
             # FASE 3: Copywriter Pro
             st.write("👤 **[3/5] Ejecutando:** Copywriter Pro...")
             kb_copy = cargar_markdown("06_COPYWRITER/copywriter_pro.md")
-            textos = llamar_gema_texto(kb_copy + contexto_global, f"Escribe los copys usando:\nBrief:\n{brief}\n\nArte:\n{arte}")
+            textos = llamar_gema_texto(client, kb_copy + contexto_global, f"Escribe los copys usando:\nBrief:\n{brief}\n\nArte:\n{arte}")
             
             # FASE 4: Visual Automation Expert
             st.write("🤖 **[4/5] Ejecutando:** Visual Automation Expert...")
             kb_visual = cargar_markdown("03_B_VISUAL_AUTOMATION/visual_automation_expert.md")
-            manifiesto_diseno = llamar_gema_texto(kb_visual + contexto_global, f"Genera las instrucciones técnicas usando:\nDirección de arte:\n{arte}\n\nCopies:\n{textos}")
+            manifiesto_diseno = llamar_gema_texto(client, kb_visual + contexto_global, f"Genera las instrucciones técnicas usando:\nDirección de arte:\n{arte}\n\nCopies:\n{textos}")
             
             # FASE 5: Generación y Renderizado de Imagen Real
             st.write("📸 **[5/5] Generando Artes Visuales finales con motor de imágenes...**")
@@ -120,17 +126,21 @@ if st.button("🚀 Iniciar Trabajo en Cadena Multimodal"):
                     
                     try:
                         # Invocamos al modelo de generación de imágenes de Google
-                        imagen_modelo = genai.ImageGenerationModel("imagen-3.0-generate-002")
-                        resultado_imagen = imagen_modelo.generate_images(
+                        resultado_imagen = client.models.generate_images(
+                            model="imagen-3.0-generate-002",
                             prompt=prompt_visual_final,
-                            number_of_images=1,
-                            aspect_ratio="9:16"
+                            config=types.GenerateImagesConfig(
+                                number_of_images=1,
+                                aspect_ratio="9:16"
+                            )
                         )
                         
                         # Extraemos la imagen generada y la guardamos localmente
-                        for imagen_generada in resultado_imagen.images:
+                        for imagen_generada in resultado_imagen.generated_images:
                             ruta_guardado = os.path.join(OUTPUT_DIR, f"arte_whatsapp_{nombre_archivo}")
-                            imagen_generada.save(ruta_guardado)
+                            # Convertimos los bytes en imagen PIL y la guardamos
+                            imagen_pil = Image.open(BytesIO(imagen_generada.image.image_bytes))
+                            imagen_pil.save(ruta_guardado)
                             lista_artes_finales.append((f"Arte para {nombre_archivo}", ruta_guardado))
                     except Exception as e:
                         st.error(f"Error al generar la imagen para {nombre_archivo}: {str(e)}")
