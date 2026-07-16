@@ -31,26 +31,42 @@ def cargar_markdown(ruta_relativa):
     return ""
 
 def llamar_gema_texto(client, prompt_sistema, entrada_usuario):
-    """Conexión estándar para las gemas estratégicas de texto"""
-    response = client.models.generate_content(
-        model="gemini-3.5-flash",
-        contents=entrada_usuario,
-        config=types.GenerateContentConfig(
-            system_instruction=prompt_sistema
-        )
-    )
-    return response.text
+    """Conexión estándar para las gemas estratégicas de texto con fallback robusto"""
+    ultimo_error = None
+    for model_name in ["gemini-3.5-flash", "gemini-2.5-flash", "gemini-1.5-flash"]:
+        try:
+            response = client.models.generate_content(
+                model=model_name,
+                contents=entrada_usuario,
+                config=types.GenerateContentConfig(
+                    system_instruction=prompt_sistema
+                )
+            )
+            return response.text
+        except Exception as e:
+            ultimo_error = e
+            st.warning(f"⚠️ El modelo '{model_name}' falló o no está disponible. Reintentando con el siguiente...")
+    st.error("❌ Todos los modelos de texto de Gemini fallaron al intentar procesar la solicitud.")
+    raise ultimo_error
 
 def llamar_gema_multimodal(client, prompt_sistema, entrada_texto, objeto_imagen):
-    """Conexión avanzada con el modelo para procesar la imagen del vehículo real"""
-    response = client.models.generate_content(
-        model="gemini-3.5-flash",
-        contents=[entrada_texto, objeto_imagen],
-        config=types.GenerateContentConfig(
-            system_instruction=prompt_sistema
-        )
-    )
-    return response.text
+    """Conexión avanzada con el modelo para procesar la imagen del vehículo real con fallback robusto"""
+    ultimo_error = None
+    for model_name in ["gemini-3.5-flash", "gemini-2.5-flash", "gemini-1.5-flash"]:
+        try:
+            response = client.models.generate_content(
+                model=model_name,
+                contents=[entrada_texto, objeto_imagen],
+                config=types.GenerateContentConfig(
+                    system_instruction=prompt_sistema
+                )
+            )
+            return response.text
+        except Exception as e:
+            ultimo_error = e
+            st.warning(f"⚠️ El modelo multimodal '{model_name}' falló o no está disponible. Reintentando con el siguiente...")
+    st.error("❌ Todos los modelos multimodales de Gemini fallaron al intentar procesar la solicitud.")
+    raise ultimo_error
 
 # 2. Entrada de la campaña publicitaria
 idea_usuario = st.text_area(
@@ -126,10 +142,22 @@ if st.button("🚀 Iniciar Trabajo en Cadena Multimodal"):
                     try:
                         imagen_pil = Image.open(ruta_img)
                         instruccion_nanobana = f"Procesa visualmente este coche aplicando de forma estricta los formatos solicitados en la orden: {idea_usuario}. Siguiendo este manifiesto: {manifiesto_diseno}"
-                        respuesta_visual = client.models.generate_content(
-                            model="gemini-2.5-flash",
-                            contents=[instruccion_nanobana, imagen_pil]
-                        )
+                        respuesta_visual = None
+                        ultimo_err_visual = None
+                        for model_name in ["gemini-2.5-flash", "gemini-1.5-flash", "gemini-3.5-flash"]:
+                            try:
+                                respuesta_visual = client.models.generate_content(
+                                    model=model_name,
+                                    contents=[instruccion_nanobana, imagen_pil]
+                                )
+                                break
+                            except Exception as model_err:
+                                ultimo_err_visual = model_err
+                                st.warning(f"⚠️ El modelo multimodal '{model_name}' falló al procesar {nombre_archivo}. Probando alternativo...")
+                        
+                        if respuesta_visual is None:
+                            raise ultimo_err_visual
+                            
                         lista_artes_finales.append((f"🚗 Elemento Procesado: {nombre_archivo}", imagen_pil, respuesta_visual.text))
                     except Exception as e:
                         st.error(f"Error procesando {nombre_archivo}: {str(e)}")
