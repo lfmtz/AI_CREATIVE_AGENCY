@@ -70,105 +70,94 @@ if archivos_inventario:
         icono = "🖼️" if f.lower().endswith(('.png', '.jpg', '.jpeg')) else "📄"
         st.sidebar.markdown(f"- {icono} `{f}`")
 
-# 3. Botón de ejecución en lote
+# 3. Botón de ejecución en lote con Inteligencia Selectiva
 if st.button("🚀 Iniciar Trabajo en Cadena Multimodal"):
     if not api_key:
         st.error("Por favor, introduce tu Gemini API Key en la barra lateral para continuar.")
     elif not idea_usuario:
-        st.warning("Escribe una idea o promoción antes de ejecutar a los agentes.")
+        st.warning("Escribe una orden o promoción antes de ejecutar a los agentes.")
     else:
-        # Inicializar credenciales globales de Google GenAI
         client = genai.Client(api_key=api_key)
         os.makedirs(OUTPUT_DIR, exist_ok=True)
         
-        # Cargar el contexto global corporativo compartido (.md)
+        # Cargar el contexto de reglas base (.md)
         contexto_auto = cargar_markdown("00_SHARED_KNOWLEDGE/Automotive/automotive_rules.md")
         contexto_copy = cargar_markdown("00_SHARED_KNOWLEDGE/Copywriting/copywriting_guidelines.md")
         contexto_media = cargar_markdown("00_SHARED_KNOWLEDGE/Social_Media/media_specs.md")
         contexto_global = f"\n{contexto_auto}\n{contexto_copy}\n{contexto_media}"
         
-        # Flujo de ejecución secuencial de agentes
-        with st.status("Ejecutando pipeline y procesando imágenes en lote...", expanded=True) as status:
+        with st.status("Analizando orden y ejecutando agentes requeridos...", expanded=True) as status:
             
-            # FASE 1: Creative Director Pro
-            st.write("👤 **[1/5] Ejecutando:** Creative Director Pro...")
-            kb_director = cargar_markdown("01_CREATIVE_DIRECTOR/creative_director_pro.md")
-            brief = llamar_gema_texto(client, kb_director + contexto_global, idea_usuario)
+            # Paso 0: Clasificación inteligente de la orden
+            st.write("🧠 **[Configuración]** Evaluando canales y entregables solicitados...")
+            prompt_filtro = f"Analiza esta orden: '{idea_usuario}'. Responde en una sola palabra 'SI' si requiere un Brief y estrategia conceptual profunda, o 'NO' si es una orden directa y operativa."
+            requiere_brief = llamar_gema_texto(client, contexto_global, prompt_filtro).strip().upper()
             
-            # FASE 2: Graphic Designer Pro
-            st.write("👤 **[2/5] Ejecutando:** Graphic Designer Pro...")
-            kb_designer = cargar_markdown("02_GRAPHIC_DESIGNER/graphic_designer_pro.md")
-            arte = llamar_gema_texto(client, kb_designer + contexto_global, f"Genera la dirección de arte basada en este Brief:\n\n{brief}")
-            
-            # FASE 3: Copywriter Pro
-            st.write("👤 **[3/5] Ejecutando:** Copywriter Pro...")
-            kb_copy = cargar_markdown("06_COPYWRITER/copywriter_pro.md")
-            textos = llamar_gema_texto(client, kb_copy + contexto_global, f"Escribe los copys usando:\nBrief:\n{brief}\n\nArte:\n{arte}")
-            
-            # FASE 4: Visual Automation Expert
-            st.write("🤖 **[4/5] Ejecutando:** Visual Automation Expert...")
-            kb_visual = cargar_markdown("03_B_VISUAL_AUTOMATION/visual_automation_expert.md")
-            manifiesto_diseno = llamar_gema_texto(client, kb_visual + contexto_global, f"Genera las instrucciones técnicas usando:\nDirección de arte:\n{arte}\n\nCopies:\n{textos}")
-            
-            # FASE 5: Generación y Renderizado de Imagen Real
-            st.write("📸 **[5/5] Generando Artes Visuales finales con motor de imágenes...**")
-            lista_artes_finales = []
-            
-            if len(imagenes_locales) == 0:
-                st.warning("No se encontraron archivos de imagen en la carpeta '00_INVENTORY_IMAGES/'.")
+            # FASE 1: Director Creativo (Solo si la estrategia lo amerita)
+            if "SI" in requiere_brief:
+                st.write("👤 **[1/5] Ejecutando:** Creative Director Pro...")
+                kb_director = cargar_markdown("01_CREATIVE_DIRECTOR/creative_director_pro.md")
+                brief = llamar_gema_texto(client, kb_director + contexto_global, idea_usuario)
             else:
+                st.write("⏭️ **[1/5] Director Creativo:** Omitido (Orden operativa directa).")
+                brief = f"Orden Directa: {idea_usuario}"
+            
+            # FASE 2: Diseñador Gráfico (Dirección de Arte basada estrictamente en la orden)
+            st.write("🎨 **[2/5] Ejecutando:** Graphic Designer Pro...")
+            kb_designer = cargar_markdown("02_GRAPHIC_DESIGNER/graphic_designer_pro.md")
+            arte = llamar_gema_texto(client, kb_designer + contexto_global, f"Establece los lineamientos visuales exclusivamente para lo solicitado en esta orden: {idea_usuario}\nContexto base: {brief}")
+            
+            # FASE 3: Copywriter Pro (Redacta solo los copys de las redes pedidas)
+            st.write("✍️ **[3/5] Ejecutando:** Copywriter Pro...")
+            kb_copy = cargar_markdown("06_COPYWRITER/copywriter_pro.md")
+            textos = llamar_gema_texto(client, kb_copy + contexto_global, f"Escribe única y exclusivamente los copys solicitados para las redes especificadas en la orden: {idea_usuario}. No inventes otros formatos.")
+            
+            # FASE 4: Visual Automation Expert (Manifiesto de estilos de los formatos requeridos)
+            st.write("📐 **[4/5] Ejecutando:** Visual Automation Expert...")
+            kb_visual = cargar_markdown("03_B_VISUAL_AUTOMATION/visual_automation_expert.md")
+            manifiesto_diseno = llamar_gema_texto(client, kb_visual + contexto_global, f"Genera las instrucciones técnicas y coordenadas métricas basándote solo en los formatos pedidos en: {idea_usuario}.")
+            
+            # FASE 5: Motor Multimodal (Solo si se detectan imágenes y se requiere procesamiento visual)
+            lista_artes_finales = []
+            if len(imagenes_locales) > 0 and any(keyword in idea_usuario.lower() for keyword in ["imagen", "arte", "catalogo", "foto", "diseño"]):
+                st.write("📸 **[5/5] Ejecutando:** Procesamiento Multimodal en lote sobre imágenes...")
                 for idx, ruta_img in enumerate(imagenes_locales):
                     nombre_archivo = os.path.basename(ruta_img)
-                    st.write(f"🎨 Renderizando banner para: {nombre_archivo}")
-                    
-                    # Definimos el prompt visual final uniendo el manifiesto y el formato vertical de WhatsApp
-                    prompt_visual_final = f"Un banner publicitario profesional en formato vertical (relación de aspecto 9:16, 1080x1920 píxeles) para estados de WhatsApp. Basado en este vehículo e instrucciones: {manifiesto_diseno}. Reemplaza el fondo por un entorno premium de la marca con iluminación realista y reflejos automotrices sobre la carrocería."
-                    
                     try:
-                        # Invocamos al modelo de generación de imágenes de Google
-                        resultado_imagen = client.models.generate_images(
-                            model="imagen-3.0-generate-002",
-                            prompt=prompt_visual_final,
-                            config=types.GenerateImagesConfig(
-                                number_of_images=1,
-                                aspect_ratio="9:16"
-                            )
+                        imagen_pil = Image.open(ruta_img)
+                        instruccion_nanobana = f"Procesa visualmente este coche aplicando de forma estricta los formatos solicitados en la orden: {idea_usuario}. Siguiendo este manifiesto: {manifiesto_diseno}"
+                        respuesta_visual = client.models.generate_content(
+                            model="gemini-2.5-flash",
+                            contents=[instruccion_nanobana, imagen_pil]
                         )
-                        
-                        # Extraemos la imagen generada y la guardamos localmente
-                        for imagen_generada in resultado_imagen.generated_images:
-                            ruta_guardado = os.path.join(OUTPUT_DIR, f"arte_whatsapp_{nombre_archivo}")
-                            # Convertimos los bytes en imagen PIL y la guardamos
-                            imagen_pil = Image.open(BytesIO(imagen_generada.image.image_bytes))
-                            imagen_pil.save(ruta_guardado)
-                            lista_artes_finales.append((f"Arte para {nombre_archivo}", ruta_guardado))
+                        lista_artes_finales.append((f"🚗 Elemento Procesado: {nombre_archivo}", imagen_pil, respuesta_visual.text))
                     except Exception as e:
-                        st.error(f"Error al generar la imagen para {nombre_archivo}: {str(e)}")
-
-            status.update(label="🎉 ¡Ecosistema finalizado con éxito!", state="complete", expanded=False)
-
-        # [Modificación en el despliegue de pestañas finales]
-        st.success("✨ Entregables creativos y técnicos listos:")
+                        st.error(f"Error procesando {nombre_archivo}: {str(e)}")
+            else:
+                st.write("⏭️ **[5/5] Motor Multimodal:** Omitido (No se requirió procesamiento visual de imágenes).")
+            
+            status.update(label="🎉 ¡Entrega a la carta finalizada con éxito!", state="complete", expanded=False)
+            
+        # Despliegue dinámico en pestañas interactivas de la interfaz
+        st.success("✨ Tus entregables solicitados están listos:")
         tab1, tab2, tab3, tab4, tab5 = st.tabs([
-            "📝 Creative Brief", 
+            "📝 Estrategia/Brief", 
             "🎨 Dirección de Arte", 
-            "✍️ Copies Persuasivos", 
-            "📐 Manifiesto de Estilos",
-            "🖼️ Artes Listos para WhatsApp"
+            "✍️ Copies Solicitados", 
+            "📐 Especificaciones Técnicas",
+            "🖼️ Procesamiento Multimodal"
         ])
         
-        with tab1:
-            st.markdown(brief)
-        with tab2:
-            st.markdown(arte)
-        with tab3:
-            st.markdown(textos)
-        with tab4:
-            st.markdown(manifiesto_diseno)
+        with tab1: st.markdown(brief)
+        with tab2: st.markdown(arte)
+        with tab3: st.markdown(textos)
+        with tab4: st.markdown(manifiesto_diseno)
         with tab5:
             if lista_artes_finales:
-                for titulo, ruta_final in lista_artes_finales:
+                for titulo, img_origen, reporte_diseno in lista_artes_finales:
                     st.subheader(titulo)
-                    st.image(ruta_final, caption="Haz clic derecho sobre la imagen para guardarla en tu celular o PC", use_container_width=False, width=360)
+                    st.image(img_origen, width=360)
+                    st.info(reporte_diseno)
+                    st.markdown("---")
             else:
-                st.info("Coloca una foto en '00_INVENTORY_IMAGES/' para ver el arte final aquí.")
+                st.info("Esta orden no requirió manipulación de imágenes del inventario o la carpeta estaba vacía.")
