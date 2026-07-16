@@ -32,7 +32,7 @@ def cargar_markdown(ruta_relativa):
 def llamar_gema_texto(prompt_sistema, entrada_usuario):
     ultimo_error = None
     # Probamos los modelos principales de texto en cascada
-    for model_name in ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.0-flash", "gemini-1.5-flash"]:
+    for model_name in ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.0-flash", "gemini-2.5-flash"]:
         for intento in range(3):
             try:
                 model = genai.GenerativeModel(
