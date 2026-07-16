@@ -31,10 +31,40 @@ def cargar_markdown(ruta_relativa):
             return f.read()
     return ""
 
+def obtener_modelos_disponibles(client):
+    """Obtiene de forma dinámica los modelos que soportan generación de contenido para la API key"""
+    try:
+        modelos = []
+        for m in client.models.list():
+            if "generateContent" in m.supported_actions:
+                modelos.append(m.name.replace("models/", ""))
+        if modelos:
+            # Orden de preferencia sugerido
+            orden_preferencia = [
+                "gemini-2.5-flash",
+                "gemini-2.5-pro",
+                "gemini-2.0-flash",
+                "gemini-1.5-flash",
+                "gemini-1.5-pro",
+                "gemini-1.5-flash-8b",
+                "gemini-3.5-flash"
+            ]
+            modelos_ordenados = [m for m in orden_preferencia if m in modelos] + [m for m in modelos if m not in orden_preferencia]
+            return modelos_ordenados
+    except Exception as e:
+        st.warning(f"⚠️ No se pudo consultar la lista de modelos del servidor: {str(e)}")
+    return ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-3.5-flash"]
+
+def obtener_modelos_disponibles_cached(client):
+    if "modelos_gemini" not in st.session_state:
+        st.session_state.modelos_gemini = obtener_modelos_disponibles(client)
+    return st.session_state.modelos_gemini
+
 def llamar_gema_texto(client, prompt_sistema, entrada_usuario):
     """Conexión estándar para las gemas estratégicas de texto con fallback robusto y manejo de rate limits (429)"""
+    modelos = obtener_modelos_disponibles_cached(client)
     ultimo_error = None
-    for model_name in ["gemini-3.5-flash", "gemini-2.5-flash", "gemini-1.5-flash"]:
+    for model_name in modelos:
         for intento in range(3):
             try:
                 response = client.models.generate_content(
@@ -50,7 +80,7 @@ def llamar_gema_texto(client, prompt_sistema, entrada_usuario):
                 status_code = getattr(e, 'status_code', None) or getattr(e, 'code', None)
                 
                 # Si es un error de rate limit (429), esperamos y reintentamos con el mismo modelo
-                if status_code == 429 or "429" in str(e) or "quota" in str(e).lower() or "limit" in str(e).lower():
+                if status_code == 429 or "429" in str(e) or "quota" in str(e).lower() or "limit" in str(e).lower() or "exhausted" in str(e).lower():
                     wait_time = (intento + 1) * 3
                     st.warning(f"⏳ Límite de velocidad (429) con '{model_name}'. Esperando {wait_time}s para reintentar (Intento {intento + 1}/3)...")
                     time.sleep(wait_time)
@@ -64,8 +94,9 @@ def llamar_gema_texto(client, prompt_sistema, entrada_usuario):
 
 def llamar_gema_multimodal(client, prompt_sistema, entrada_texto, objeto_imagen):
     """Conexión avanzada con el modelo para procesar la imagen del vehículo real con fallback y manejo de 429"""
+    modelos = obtener_modelos_disponibles_cached(client)
     ultimo_error = None
-    for model_name in ["gemini-3.5-flash", "gemini-2.5-flash", "gemini-1.5-flash"]:
+    for model_name in modelos:
         for intento in range(3):
             try:
                 response = client.models.generate_content(
@@ -80,7 +111,7 @@ def llamar_gema_multimodal(client, prompt_sistema, entrada_texto, objeto_imagen)
                 ultimo_error = e
                 status_code = getattr(e, 'status_code', None) or getattr(e, 'code', None)
                 
-                if status_code == 429 or "429" in str(e) or "quota" in str(e).lower() or "limit" in str(e).lower():
+                if status_code == 429 or "429" in str(e) or "quota" in str(e).lower() or "limit" in str(e).lower() or "exhausted" in str(e).lower():
                     wait_time = (intento + 1) * 3
                     st.warning(f"⏳ Límite de velocidad (429) con '{model_name}'. Esperando {wait_time}s para reintentar (Intento {intento + 1}/3)...")
                     time.sleep(wait_time)
@@ -174,7 +205,8 @@ if st.button("🚀 Iniciar Trabajo en Cadena Multimodal"):
                             
                             respuesta_visual = None
                             ultimo_err_visual = None
-                            for model_name in ["gemini-2.5-flash", "gemini-1.5-flash", "gemini-3.5-flash"]:
+                            modelos_multimodal = obtener_modelos_disponibles_cached(client)
+                            for model_name in modelos_multimodal:
                                 time.sleep(2)
                                 try:
                                     respuesta_visual = client.models.generate_content(
