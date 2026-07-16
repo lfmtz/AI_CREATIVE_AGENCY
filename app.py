@@ -58,6 +58,7 @@ imagenes_locales = glob.glob(os.path.join(INVENTORY_DIR, "*.jpg")) + \
                    glob.glob(os.path.join(INVENTORY_DIR, "*.png"))
 
 st.sidebar.markdown(f"📦 **Inventario detectado:** {len(imagenes_locales)} imágenes listas para procesar.")
+st.sidebar.write("Archivos en la carpeta:", os.listdir(INVENTORY_DIR))
 
 # 3. Botón de ejecución en lote
 if st.button("🚀 Iniciar Trabajo en Cadena Multimodal"):
