@@ -17,10 +17,37 @@ st.sidebar.header("🔑 Configuración")
 api_key = st.sidebar.text_input("Introduce tu Gemini API Key:", type="password")
 st.sidebar.markdown("[¿Cómo obtener una API Key gratis?](https://aistudio.google.com/)")
 
-# Definición de rutas del ecosistema
+# --- BUSCADOR UNIVERSAL INMUNE A FALLOS EN LA NUBE ---
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-INVENTORY_DIR = os.path.join(BASE_DIR, "00_INVENTORY_IMAGES")
 OUTPUT_DIR = os.path.join(BASE_DIR, "10_PROJECTS", "Campana_Automatizada")
+
+# Intentar encontrar la carpeta del inventario buscando en múltiples niveles posibles
+posibles_rutas = [
+    os.path.join(BASE_DIR, "00_INVENTORY_IMAGES"),
+    os.path.join(BASE_DIR, "..", "00_INVENTORY_IMAGES"),
+    "/mount/src/ai_creative_agency/00_INVENTORY_IMAGES",
+    "00_INVENTORY_IMAGES"
+]
+
+INVENTORY_DIR = posibles_rutas[0] # Ruta por defecto
+for ruta in posibles_rutas:
+    if os.path.exists(ruta):
+        INVENTORY_DIR = ruta
+        break
+
+# Asegurar que la carpeta exista físicamente en el servidor
+os.makedirs(INVENTORY_DIR, exist_ok=True)
+
+# Escaneo ultra-preciso de archivos de imagen
+imagenes_locales = []
+for archivo in os.listdir(INVENTORY_DIR):
+    if archivo.lower().endswith(('.png', '.jpg', '.jpeg')) and not archivo.startswith('.'):
+        imagenes_locales.append(os.path.join(INVENTORY_DIR, archivo))
+
+# Mostrar diagnóstico en la barra lateral para saber la ruta exacta real
+st.sidebar.markdown(f"📁 **Ruta activa:** `{os.path.basename(INVENTORY_DIR)}`")
+st.sidebar.markdown(f"📦 **Inventario detectado:** {len(imagenes_locales)} imágenes.")
+
 
 def cargar_markdown(ruta_relativa):
     ruta_completa = os.path.join(BASE_DIR, ruta_relativa)
@@ -61,21 +88,7 @@ idea_usuario = st.text_area(
     placeholder="Ej: Necesito una imagen para mi estado de WhatsApp de una RAM 1200 chasis con fondo alusivo a la marca..."
 )
 
-# Escanear imágenes disponibles en el inventario
-if not os.path.exists(INVENTORY_DIR):
-    os.makedirs(INVENTORY_DIR, exist_ok=True)
-
-# Listar archivos físicos en el inventario (útil para diagnóstico en Streamlit Cloud)
-archivos_fisicos = [f for f in os.listdir(INVENTORY_DIR) if f != "README_INVENTORY.md"]
-if archivos_fisicos:
-    st.sidebar.write("Archivos en inventario:", archivos_fisicos)
-
-# Glob insensible a mayúsculas/minúsculas para Linux (Streamlit Cloud)
-imagenes_locales = []
-for patron in ["*.jpg", "*.jpeg", "*.png", "*.JPG", "*.JPEG", "*.PNG"]:
-    imagenes_locales.extend(glob.glob(os.path.join(INVENTORY_DIR, patron)))
-
-st.sidebar.markdown(f"📦 **Inventario detectado:** {len(imagenes_locales)} imágenes.")
+# (Escaneo realizado con éxito mediante el buscador universal en el inicio de la app)
 
 if st.button("🚀 Iniciar Trabajo en Cadena Multimodal"):
     if not api_key:
