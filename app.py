@@ -62,9 +62,18 @@ idea_usuario = st.text_area(
 )
 
 # Escanear imágenes disponibles en el inventario
-imagenes_locales = glob.glob(os.path.join(INVENTORY_DIR, "*.jpg")) + \
-                   glob.glob(os.path.join(INVENTORY_DIR, "*.jpeg")) + \
-                   glob.glob(os.path.join(INVENTORY_DIR, "*.png"))
+if not os.path.exists(INVENTORY_DIR):
+    os.makedirs(INVENTORY_DIR, exist_ok=True)
+
+# Listar archivos físicos en el inventario (útil para diagnóstico en Streamlit Cloud)
+archivos_fisicos = [f for f in os.listdir(INVENTORY_DIR) if f != "README_INVENTORY.md"]
+if archivos_fisicos:
+    st.sidebar.write("Archivos en inventario:", archivos_fisicos)
+
+# Glob insensible a mayúsculas/minúsculas para Linux (Streamlit Cloud)
+imagenes_locales = []
+for patron in ["*.jpg", "*.jpeg", "*.png", "*.JPG", "*.JPEG", "*.PNG"]:
+    imagenes_locales.extend(glob.glob(os.path.join(INVENTORY_DIR, patron)))
 
 st.sidebar.markdown(f"📦 **Inventario detectado:** {len(imagenes_locales)} imágenes.")
 
@@ -111,43 +120,45 @@ if st.button("🚀 Iniciar Trabajo en Cadena Multimodal"):
                 
                 # FASE 5: Motor de Montaje Físico (Nanobana + Pillow + rembg)
                 lista_artes_finales = []
-                if len(imagenes_locales) > 0:
-                    st.write("📸 **[5/5] Renderizando fondos con Nanobana y fusionando en lote...**")
-                    time.sleep(2)
+                # FASE 5: Motor de Montaje Físico (Nanobana + Pillow + rembg)
+                st.write("📸 **[5/5] Renderizando fondos con Nanobana...**")
+                time.sleep(2)
+                
+                try:
+                    # 1. Generamos el fondo corporativo premium una sola vez para la marca solicitada
+                    st.write("🌌 Generando fondo de marca de alta gama con Imagen 3...")
+                    imagen_modelo = genai.ImageGenerationModel("imagen-3.0-generate-002")
                     
-                    try:
-                        # 1. Generamos el fondo corporativo premium una sola vez para la marca solicitada
-                        st.write("🌌 Generando fondo de marca de alta gama con Imagen 3...")
-                        imagen_modelo = genai.ImageGenerationModel("imagen-3.0-generate-002")
-                        
-                        resultado_fondo = None
-                        ultimo_err_imagen = None
-                        for intento in range(3):
-                            try:
-                                resultado_fondo = imagen_modelo.generate_images(
-                                    prompt=f"A professional, commercial-grade background, vertical format (1080x1920 px), clean studio or outdoor setting designed for a car advertisement. Description: {manifiesto_diseno}",
-                                    number_of_images=1,
-                                    aspect_ratio="9:16"
-                                )
+                    resultado_fondo = None
+                    ultimo_err_imagen = None
+                    for intento in range(3):
+                        try:
+                            resultado_fondo = imagen_modelo.generate_images(
+                                prompt=f"A professional, commercial-grade background, vertical format (1080x1920 px), clean studio or outdoor setting designed for a car advertisement. Description: {manifiesto_diseno}",
+                                number_of_images=1,
+                                aspect_ratio="9:16"
+                            )
+                            break
+                        except Exception as img_err:
+                            ultimo_err_imagen = img_err
+                            if "429" in str(img_err) or "quota" in str(img_err).lower() or "limit" in str(img_err).lower():
+                                st.warning(f"⏳ Límite de velocidad en generación de imágenes. Esperando 5s...")
+                                time.sleep(5)
+                                continue
+                            else:
                                 break
-                            except Exception as img_err:
-                                ultimo_err_imagen = img_err
-                                if "429" in str(img_err) or "quota" in str(img_err).lower() or "limit" in str(img_err).lower():
-                                    st.warning(f"⏳ Límite de velocidad en generación de imágenes. Esperando 5s...")
-                                    time.sleep(5)
-                                    continue
-                                else:
-                                    break
-                                    
-                        if resultado_fondo is None:
-                            raise ultimo_err_imagen
-                        
-                        # Guardamos el fondo maestro generado por la IA
-                        ruta_fondo_maestro = os.path.join(OUTPUT_DIR, "fondo_generado_maestro.png")
-                        resultado_fondo.images[0].save(ruta_fondo_maestro)
+                                
+                    if resultado_fondo is None:
+                        raise ultimo_err_imagen
+                    
+                    # Guardamos el fondo maestro generado por la IA
+                    ruta_fondo_maestro = os.path.join(OUTPUT_DIR, "fondo_generado_maestro.png")
+                    resultado_fondo.images[0].save(ruta_fondo_maestro)
+                    
+                    # Si hay imágenes en el inventario, hacemos la fusión física
+                    if len(imagenes_locales) > 0:
                         fondo_maestro = Image.open(ruta_fondo_maestro).convert("RGBA")
-                        
-                        # 2. Procesamos cada carro del inventario en lote
+                        # Procesamos cada carro del inventario en lote
                         for idx, ruta_img in enumerate(imagenes_locales):
                             nombre_archivo = os.path.basename(ruta_img)
                             st.write(f"✂️ Removiendo fondo y montando vehículo ({idx+1}/{len(imagenes_locales)}): {nombre_archivo}")
@@ -177,11 +188,13 @@ if st.button("🚀 Iniciar Trabajo en Cadena Multimodal"):
                             canvas_final.save(ruta_salida_final)
                             
                             lista_artes_finales.append((f"🎯 Arte Terminado para {nombre_archivo}", ruta_salida_final))
-                            
-                    except Exception as e:
-                        st.error(f"Error en el motor de montaje: {str(e)}")
-                else:
-                    st.write("⏭️ **[5/5] Motor Multimodal:** Omitido (No hay imágenes en '00_INVENTORY_IMAGES/').")
+                    else:
+                        # Si no hay imágenes en el inventario, entregamos el fondo generado directamente
+                        st.info("ℹ️ No se detectaron coches en el inventario. Entregando el fondo de marca premium generado.")
+                        lista_artes_finales.append(("🎯 Fondo de Marca Premium Generado (Listo para montaje)", ruta_fondo_maestro))
+                        
+                except Exception as e:
+                    st.error(f"Error en el motor de montaje o generación: {str(e)}")
                     
                 status.update(label="🎉 ¡Procesamiento de catálogo finalizado con éxito!", state="complete", expanded=False)
                 
