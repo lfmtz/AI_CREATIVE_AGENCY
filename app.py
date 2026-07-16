@@ -66,22 +66,32 @@ def cargar_markdown(ruta_relativa):
 
 def llamar_gema_texto(prompt_sistema, entrada_usuario):
     ultimo_error = None
-    # Usar estrictamente gemini-2.5-flash con reintentos para rate limits (429)
-    for intento in range(3):
-        try:
-            model = genai.GenerativeModel(model_name="gemini-2.5-flash", system_instruction=prompt_sistema)
-            response = model.generate_content(entrada_usuario)
-            return response.text
-        except Exception as e:
-            ultimo_error = e
-            if "429" in str(e) or "quota" in str(e).lower() or "limit" in str(e).lower() or "exhausted" in str(e).lower():
-                wait_time = (intento + 1) * 3
-                st.warning(f"⏳ Límite de velocidad (429) con 'gemini-2.5-flash'. Esperando {wait_time}s para reintentar (Intento {intento + 1}/3)...")
-                time.sleep(wait_time)
-                continue
-            else:
-                break
-    st.error(f"❌ Error con gemini-2.5-flash: {str(ultimo_error)}")
+    # Cascada de modelos para saltar límites diarios o saturaciones de un modelo específico
+    modelos_a_probar = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-2.5-pro"]
+    for model_name in modelos_a_probar:
+        for intento in range(3):
+            try:
+                model = genai.GenerativeModel(model_name=model_name, system_instruction=prompt_sistema)
+                response = model.generate_content(entrada_usuario)
+                return response.text
+            except Exception as e:
+                ultimo_error = e
+                # Si es un límite de cuota o rate limit
+                if "429" in str(e) or "quota" in str(e).lower() or "limit" in str(e).lower() or "exhausted" in str(e).lower():
+                    # Si es un límite diario estricto (ej. el límite diario de 20 peticiones agotado)
+                    # pasamos inmediatamente al siguiente modelo
+                    if "day" in str(e).lower() or "daily" in str(e).lower() or "project" in str(e).lower():
+                        st.warning(f"⚠️ Límite diario excedido para '{model_name}'. Probando el siguiente modelo en cascada...")
+                        break
+                    
+                    wait_time = (intento + 1) * 3
+                    st.warning(f"⏳ Límite de velocidad (429) con '{model_name}'. Esperando {wait_time}s para reintentar (Intento {intento + 1}/3)...")
+                    time.sleep(wait_time)
+                    continue
+                else:
+                    # Otros errores como modelo no soportado
+                    break
+    st.error(f"❌ Todos los modelos de texto de Gemini fallaron. Último error: {str(ultimo_error)}")
     raise ultimo_error
 
 # Cuadro de texto libre para cualquier canal o red social
