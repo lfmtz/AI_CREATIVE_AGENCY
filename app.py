@@ -99,43 +99,47 @@ if st.button("🚀 Iniciar Trabajo en Cadena Multimodal"):
             kb_visual = cargar_markdown("03_B_VISUAL_AUTOMATION/visual_automation_expert.md")
             manifiesto_diseno = llamar_gema_texto(kb_visual + contexto_global, f"Genera las instrucciones técnicas usando:\nDirección de arte:\n{arte}\n\nCopies:\n{textos}")
             
-            # FASE 5: Motor Multimodal en Lote (Bucle sobre las imágenes del inventario)
-            st.write("📸 **[5/5] Ejecutando Procesamiento Multimodal en lote sobre imágenes...**")
-            reporte_imagenes = ""
+            # FASE 5: Generación y Renderizado de Imagen Real
+            st.write("📸 **[5/5] Generando Artes Visuales finales con motor de imágenes...**")
+            lista_artes_finales = []
             
             if len(imagenes_locales) == 0:
-                reporte_imagenes = "⚠️ No se encontraron archivos de imagen en la carpeta '00_INVENTORY_IMAGES/'. Por favor coloca tus fotos ahí."
+                st.warning("No se encontraron archivos de imagen en la carpeta '00_INVENTORY_IMAGES/'.")
             else:
                 for idx, ruta_img in enumerate(imagenes_locales):
                     nombre_archivo = os.path.basename(ruta_img)
-                    st.write(f"🔄 Procesando archivo ({idx+1}/{len(imagenes_locales)}): {nombre_archivo}")
+                    st.write(f"🎨 Renderizando banner para: {nombre_archivo}")
                     
-                    # Abrir la imagen del inventario local con Pillow
-                    imagen_pil = Image.open(ruta_img)
+                    # Definimos el prompt visual final uniendo el manifiesto y el formato vertical de WhatsApp
+                    prompt_visual_final = f"Un banner publicitario profesional en formato vertical (relación de aspecto 9:16, 1080x1920 píxeles) para estados de WhatsApp. Basado en este vehículo e instrucciones: {manifiesto_diseno}. Reemplaza el fondo por un entorno premium de la marca con iluminación realista y reflejos automotrices sobre la carrocería."
                     
-                    # Llamar al modelo enviando el Manifiesto de Diseño + la Imagen Real del Auto
-                    instrucciones_render = f"""
-                    Usa las directrices del Manifiesto de Diseño adjunto para procesar esta imagen de inventario.
-                    Manifiesto:
-                    {manifiesto_diseno}
-                    
-                    Instrucción Crítica: Analiza el auto de la imagen, conserva su estructura, remueve su fondo original y descríbelo integrando el nuevo fondo conceptual e iluminación correspondiente a la marca según las especificaciones del canal de WhatsApp (1080x1920 px).
-                    """
-                    
-                    resultado_analisis = llamar_gema_multimodal(kb_visual + contexto_global, instrucciones_render, imagen_pil)
-                    
-                    reporte_imagenes += f"\n### 📊 Arte para archivo: {nombre_archivo}\n{resultado_analisis}\n---\n"
-            
+                    try:
+                        # Invocamos al modelo de generación de imágenes de Google
+                        imagen_modelo = genai.ImageGenerationModel("imagen-3.0-generate-002")
+                        resultado_imagen = imagen_modelo.generate_images(
+                            prompt=prompt_visual_final,
+                            number_of_images=1,
+                            aspect_ratio="9:16"
+                        )
+                        
+                        # Extraemos la imagen generada y la guardamos localmente
+                        for imagen_generada in resultado_imagen.images:
+                            ruta_guardado = os.path.join(OUTPUT_DIR, f"arte_whatsapp_{nombre_archivo}")
+                            imagen_generada.save(ruta_guardado)
+                            lista_artes_finales.append((f"Arte para {nombre_archivo}", ruta_guardado))
+                    except Exception as e:
+                        st.error(f"Error al generar la imagen para {nombre_archivo}: {str(e)}")
+
             status.update(label="🎉 ¡Ecosistema finalizado con éxito!", state="complete", expanded=False)
-            
-        # 4. Despliegue en pestañas organizadas dentro de la UI
+
+        # [Modificación en el despliegue de pestañas finales]
         st.success("✨ Entregables creativos y técnicos listos:")
         tab1, tab2, tab3, tab4, tab5 = st.tabs([
             "📝 Creative Brief", 
             "🎨 Dirección de Arte", 
             "✍️ Copies Persuasivos", 
             "📐 Manifiesto de Estilos",
-            "🖼️ Procesamiento de Imágenes"
+            "🖼️ Artes Listos para WhatsApp"
         ])
         
         with tab1:
@@ -147,4 +151,9 @@ if st.button("🚀 Iniciar Trabajo en Cadena Multimodal"):
         with tab4:
             st.markdown(manifiesto_diseno)
         with tab5:
-            st.markdown(reporte_imagenes)
+            if lista_artes_finales:
+                for titulo, ruta_final in lista_artes_finales:
+                    st.subheader(titulo)
+                    st.image(ruta_final, caption="Haz clic derecho sobre la imagen para guardarla en tu celular o PC", use_container_width=False, width=360)
+            else:
+                st.info("Coloca una foto en '00_INVENTORY_IMAGES/' para ver el arte final aquí.")
