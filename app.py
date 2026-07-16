@@ -116,78 +116,108 @@ if st.button("🚀 Iniciar Trabajo en Cadena Multimodal"):
     elif not idea_usuario:
         st.warning("Escribe una orden o promoción antes de ejecutar a los agentes.")
     else:
-        client = genai.Client(api_key=api_key)
-        os.makedirs(OUTPUT_DIR, exist_ok=True)
-        
-        # Cargar el contexto de reglas base (.md)
-        contexto_auto = cargar_markdown("00_SHARED_KNOWLEDGE/Automotive/automotive_rules.md")
-        contexto_copy = cargar_markdown("00_SHARED_KNOWLEDGE/Copywriting/copywriting_guidelines.md")
-        contexto_media = cargar_markdown("00_SHARED_KNOWLEDGE/Social_Media/media_specs.md")
-        contexto_global = f"\n{contexto_auto}\n{contexto_copy}\n{contexto_media}"
-        
-        with st.status("Analizando orden y ejecutando agentes requeridos...", expanded=True) as status:
+        try:
+            client = genai.Client(api_key=api_key)
+            os.makedirs(OUTPUT_DIR, exist_ok=True)
             
-            # Paso 0: Clasificación inteligente de la orden
-            st.write("🧠 **[Configuración]** Evaluando canales y entregables solicitados...")
-            prompt_filtro = f"Analiza esta orden: '{idea_usuario}'. Responde en una sola palabra 'SI' si requiere un Brief y estrategia conceptual profunda, o 'NO' si es una orden directa y operativa."
-            requiere_brief = llamar_gema_texto(client, contexto_global, prompt_filtro).strip().upper()
+            # Cargar el contexto de reglas base (.md)
+            contexto_auto = cargar_markdown("00_SHARED_KNOWLEDGE/Automotive/automotive_rules.md")
+            contexto_copy = cargar_markdown("00_SHARED_KNOWLEDGE/Copywriting/copywriting_guidelines.md")
+            contexto_media = cargar_markdown("00_SHARED_KNOWLEDGE/Social_Media/media_specs.md")
+            contexto_global = f"\n{contexto_auto}\n{contexto_copy}\n{contexto_media}"
             
-            # FASE 1: Director Creativo (Solo si la estrategia lo amerita)
-            if "SI" in requiere_brief:
-                st.write("👤 **[1/5] Ejecutando:** Creative Director Pro...")
-                kb_director = cargar_markdown("01_CREATIVE_DIRECTOR/creative_director_pro.md")
-                brief = llamar_gema_texto(client, kb_director + contexto_global, idea_usuario)
-            else:
-                st.write("⏭️ **[1/5] Director Creativo:** Omitido (Orden operativa directa).")
-                brief = f"Orden Directa: {idea_usuario}"
-            
-            # FASE 2: Diseñador Gráfico (Dirección de Arte basada estrictamente en la orden)
-            st.write("🎨 **[2/5] Ejecutando:** Graphic Designer Pro...")
-            kb_designer = cargar_markdown("02_GRAPHIC_DESIGNER/graphic_designer_pro.md")
-            arte = llamar_gema_texto(client, kb_designer + contexto_global, f"Establece los lineamientos visuales exclusivamente para lo solicitado en esta orden: {idea_usuario}\nContexto base: {brief}")
-            
-            # FASE 3: Copywriter Pro (Redacta solo los copys de las redes pedidas)
-            st.write("✍️ **[3/5] Ejecutando:** Copywriter Pro...")
-            kb_copy = cargar_markdown("06_COPYWRITER/copywriter_pro.md")
-            textos = llamar_gema_texto(client, kb_copy + contexto_global, f"Escribe única y exclusivamente los copys solicitados para las redes especificadas en la orden: {idea_usuario}. No inventes otros formatos.")
-            
-            # FASE 4: Visual Automation Expert (Manifiesto de estilos de los formatos requeridos)
-            st.write("📐 **[4/5] Ejecutando:** Visual Automation Expert...")
-            kb_visual = cargar_markdown("03_B_VISUAL_AUTOMATION/visual_automation_expert.md")
-            manifiesto_diseno = llamar_gema_texto(client, kb_visual + contexto_global, f"Genera las instrucciones técnicas y coordenadas métricas basándote solo en los formatos pedidos en: {idea_usuario}.")
-            
-            # FASE 5: Motor Multimodal (Solo si se detectan imágenes y se requiere procesamiento visual)
-            lista_artes_finales = []
-            if len(imagenes_locales) > 0 and any(keyword in idea_usuario.lower() for keyword in ["imagen", "arte", "catalogo", "foto", "diseño"]):
-                st.write("📸 **[5/5] Ejecutando:** Procesamiento Multimodal en lote sobre imágenes...")
-                for idx, ruta_img in enumerate(imagenes_locales):
-                    nombre_archivo = os.path.basename(ruta_img)
-                    try:
-                        imagen_pil = Image.open(ruta_img)
-                        instruccion_nanobana = f"Procesa visualmente este coche aplicando de forma estricta los formatos solicitados en la orden: {idea_usuario}. Siguiendo este manifiesto: {manifiesto_diseno}"
-                        respuesta_visual = None
-                        ultimo_err_visual = None
-                        for model_name in ["gemini-2.5-flash", "gemini-1.5-flash", "gemini-3.5-flash"]:
-                            try:
-                                respuesta_visual = client.models.generate_content(
-                                    model=model_name,
-                                    contents=[instruccion_nanobana, imagen_pil]
-                                )
-                                break
-                            except Exception as model_err:
-                                ultimo_err_visual = model_err
-                                st.warning(f"⚠️ El modelo multimodal '{model_name}' falló al procesar {nombre_archivo}. Probando alternativo...")
-                        
-                        if respuesta_visual is None:
-                            raise ultimo_err_visual
+            with st.status("Analizando orden y ejecutando agentes requeridos...", expanded=True) as status:
+                
+                # Paso 0: Clasificación inteligente de la orden
+                st.write("🧠 **[Configuración]** Evaluando canales y entregables solicitados...")
+                time.sleep(2)
+                prompt_filtro = f"Analiza esta orden: '{idea_usuario}'. Responde en una sola palabra 'SI' si requiere un Brief y estrategia conceptual profunda, o 'NO' si es una orden directa y operativa."
+                requiere_brief = llamar_gema_texto(client, contexto_global, prompt_filtro).strip().upper()
+                
+                # FASE 1: Director Creativo (Solo si la estrategia lo amerita)
+                if "SI" in requiere_brief:
+                    st.write("👤 **[1/5] Ejecutando:** Creative Director Pro...")
+                    time.sleep(2)
+                    kb_director = cargar_markdown("01_CREATIVE_DIRECTOR/creative_director_pro.md")
+                    brief = llamar_gema_texto(client, kb_director + contexto_global, idea_usuario)
+                else:
+                    st.write("⏭️ **[1/5] Director Creativo:** Omitido (Orden operativa directa).")
+                    brief = f"Orden Directa: {idea_usuario}"
+                
+                # FASE 2: Diseñador Gráfico (Dirección de Arte basada estrictamente en la orden)
+                st.write("🎨 **[2/5] Ejecutando:** Graphic Designer Pro...")
+                time.sleep(2)
+                kb_designer = cargar_markdown("02_GRAPHIC_DESIGNER/graphic_designer_pro.md")
+                arte = llamar_gema_texto(client, kb_designer + contexto_global, f"Establece los lineamientos visuales exclusivamente para lo solicitado en esta orden: {idea_usuario}\nContexto base: {brief}")
+                
+                # FASE 3: Copywriter Pro (Redacta solo los copys de las redes pedidas)
+                st.write("✍️ **[3/5] Ejecutando:** Copywriter Pro...")
+                time.sleep(2)
+                kb_copy = cargar_markdown("06_COPYWRITER/copywriter_pro.md")
+                textos = llamar_gema_texto(client, kb_copy + contexto_global, f"Escribe única y exclusivamente los copys solicitados para las redes especificadas en la orden: {idea_usuario}. No inventes otros formatos.")
+                
+                # FASE 4: Visual Automation Expert (Manifiesto de estilos de los formatos requeridos)
+                st.write("📐 **[4/5] Ejecutando:** Visual Automation Expert...")
+                time.sleep(2)
+                kb_visual = cargar_markdown("03_B_VISUAL_AUTOMATION/visual_automation_expert.md")
+                manifiesto_diseno = llamar_gema_texto(client, kb_visual + contexto_global, f"Genera las instrucciones técnicas y coordenadas métricas basándote solo en los formatos pedidos en: {idea_usuario}.")
+                
+                # FASE 5: Motor Multimodal (Solo si se detectan imágenes y se requiere procesamiento visual)
+                lista_artes_finales = []
+                if len(imagenes_locales) > 0 and any(keyword in idea_usuario.lower() for keyword in ["imagen", "arte", "catalogo", "foto", "diseño"]):
+                    st.write("📸 **[5/5] Ejecutando:** Procesamiento Multimodal en lote sobre imágenes...")
+                    for idx, ruta_img in enumerate(imagenes_locales):
+                        nombre_archivo = os.path.basename(ruta_img)
+                        try:
+                            imagen_pil = Image.open(ruta_img)
+                            instruccion_nanobana = f"Procesa visualmente este coche aplicando de forma estricta los formatos solicitados en la orden: {idea_usuario}. Siguiendo este manifiesto: {manifiesto_diseno}"
                             
-                        lista_artes_finales.append((f"🚗 Elemento Procesado: {nombre_archivo}", imagen_pil, respuesta_visual.text))
-                    except Exception as e:
-                        st.error(f"Error procesando {nombre_archivo}: {str(e)}")
-            else:
-                st.write("⏭️ **[5/5] Motor Multimodal:** Omitido (No se requirió procesamiento visual de imágenes).")
-            
-            status.update(label="🎉 ¡Entrega a la carta finalizada con éxito!", state="complete", expanded=False)
+                            respuesta_visual = None
+                            ultimo_err_visual = None
+                            for model_name in ["gemini-2.5-flash", "gemini-1.5-flash", "gemini-3.5-flash"]:
+                                time.sleep(2)
+                                try:
+                                    respuesta_visual = client.models.generate_content(
+                                        model=model_name,
+                                        contents=[instruccion_nanobana, imagen_pil]
+                                    )
+                                    break
+                                except Exception as model_err:
+                                    ultimo_err_visual = model_err
+                                    status_code = getattr(model_err, 'status_code', None) or getattr(model_err, 'code', None)
+                                    
+                                    if status_code == 429 or "429" in str(model_err) or "quota" in str(model_err).lower() or "limit" in str(model_err).lower() or "exhausted" in str(model_err).lower():
+                                        st.warning(f"⏳ Límite de velocidad (429) con '{model_name}'. Esperando 5s...")
+                                        time.sleep(5)
+                                        try:
+                                            respuesta_visual = client.models.generate_content(
+                                                model=model_name,
+                                                contents=[instruccion_nanobana, imagen_pil]
+                                            )
+                                            break
+                                        except Exception as retry_err:
+                                            ultimo_err_visual = retry_err
+                                    
+                                    st.warning(f"⚠️ El modelo multimodal '{model_name}' falló al procesar {nombre_archivo} (Código: {status_code}). Probando alternativo...")
+                            
+                            if respuesta_visual is None:
+                                raise ultimo_err_visual
+                                
+                            lista_artes_finales.append((f"🚗 Elemento Procesado: {nombre_archivo}", imagen_pil, respuesta_visual.text))
+                        except Exception as e:
+                            st.error(f"Error procesando {nombre_archivo}: {str(e)}")
+                else:
+                    st.write("⏭️ **[5/5] Motor Multimodal:** Omitido (No se requirió procesamiento visual de imágenes).")
+                
+                status.update(label="🎉 ¡Entrega a la carta finalizada con éxito!", state="complete", expanded=False)
+        except Exception as pipeline_err:
+            st.error("💥 **Error Crítico en la ejecución de los agentes:**")
+            status_code = getattr(pipeline_err, 'status_code', None) or getattr(pipeline_err, 'code', None)
+            st.code(f"Tipo: {type(pipeline_err).__name__}\nCódigo: {status_code}\nDetalle: {str(pipeline_err)}")
+            response = getattr(pipeline_err, 'response', None)
+            if response:
+                st.code(f"Respuesta del Servidor:\n{getattr(response, 'text', '')}")
+            raise pipeline_err
             
         # Despliegue dinámico en pestañas interactivas de la interfaz
         st.success("✨ Tus entregables solicitados están listos:")
