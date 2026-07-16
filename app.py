@@ -1,31 +1,35 @@
 import os
+import glob
+from PIL import Image
 import streamlit as st
 import google.generativeai as genai
 
-# Configuración visual de la página web
-st.set_page_config(page_title="Agencia IA - Coworking", page_icon="🚀", layout="wide")
+# Configuración visual de la plataforma web
+st.set_page_config(page_title="Agencia IA - Motor Multimodal", page_icon="🚀", layout="wide")
 
 st.title("🤖 Ecosistema de Coworking - Agencia Creativa IA")
-st.subheader("Orquesta tus GEMs en cadena automotriz con un solo clic")
+st.subheader("Orquestador Masivo Multimodal: Generación de Artes en Lote para WhatsApp")
 
-# 1. Barra lateral para la API Key
+# 1. Configuración de API Key en la barra lateral
 st.sidebar.header("🔑 Configuración")
 api_key = st.sidebar.text_input("Introduce tu Gemini API Key:", type="password")
 st.sidebar.markdown("[¿Cómo obtener una API Key gratis?](https://aistudio.google.com/)")
 
-# Ruta base del proyecto
+# Definición de rutas absolutas del ecosistema
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+INVENTORY_DIR = os.path.join(BASE_DIR, "00_INVENTORY_IMAGES")
+OUTPUT_DIR = os.path.join(BASE_DIR, "10_PROJECTS", "Campana_Automatizada")
 
 def cargar_markdown(ruta_relativa):
-    """Función para leer las bases de conocimiento (.md) de tus carpetas"""
+    """Lee las bases de conocimiento (.md) de las carpetas de tus gemas"""
     ruta_completa = os.path.join(BASE_DIR, ruta_relativa)
     if os.path.exists(ruta_completa):
         with open(ruta_completa, 'r', encoding='utf-8') as f:
             return f.read()
     return ""
 
-def llamar_gema(prompt_sistema, entrada_usuario):
-    """Conexión directa con la API de Gemini usando tu modelo Pro"""
+def llamar_gema_texto(prompt_sistema, entrada_usuario):
+    """Conexión estándar para las gemas estratégicas de texto"""
     model = genai.GenerativeModel(
         model_name="gemini-1.5-pro",
         system_instruction=prompt_sistema
@@ -33,56 +37,106 @@ def llamar_gema(prompt_sistema, entrada_usuario):
     response = model.generate_content(entrada_usuario)
     return response.text
 
-# 2. Caja de texto para tu idea de pauta/contenido
+def llamar_gema_multimodal(prompt_sistema, entrada_texto, objeto_imagen):
+    """Conexión avanzada con el modelo para procesar la imagen del vehículo real"""
+    model = genai.GenerativeModel(
+        model_name="gemini-1.5-pro",
+        system_instruction=prompt_sistema
+    )
+    response = model.generate_content([entrada_texto, objeto_imagen])
+    return response.text
+
+# 2. Entrada de la campaña publicitaria
 idea_usuario = st.text_area(
     "💡 Describe la oferta o idea del vehículo para la campaña:",
-    placeholder="Ej: Lanzar pauta para Jeep Grand Cherokee en CDMX. Destacar bono de $50,000 MXN y captar leads para WhatsApp..."
+    placeholder="Ej: Lanzar pauta para RAM 700 en CDMX. Destacar bono de $30,000 MXN y mensualidades desde $3,999 MXN para WhatsApp Status..."
 )
 
-# 3. Botón de ejecución del Coworking
-if st.button("🚀 Iniciar Trabajo en Cadena"):
+# Escanear imágenes disponibles en la carpeta de inventario
+imagenes_locales = glob.glob(os.path.join(INVENTORY_DIR, "*.jpg")) + \
+                   glob.glob(os.path.join(INVENTORY_DIR, "*.jpeg")) + \
+                   glob.glob(os.path.join(INVENTORY_DIR, "*.png"))
+
+st.sidebar.markdown(f"📦 **Inventario detectado:** {len(imagenes_locales)} imágenes listas para procesar.")
+
+# 3. Botón de ejecución en lote
+if st.button("🚀 Iniciar Trabajo en Cadena Multimodal"):
     if not api_key:
         st.error("Por favor, introduce tu Gemini API Key en la barra lateral para continuar.")
     elif not idea_usuario:
         st.warning("Escribe una idea o promoción antes de ejecutar a los agentes.")
     else:
-        # Configurar la API Key de Google
+        # Inicializar credenciales globales de Google
         genai.configure(api_key=api_key)
+        os.makedirs(OUTPUT_DIR, exist_ok=True)
         
-        # Cargar el Contexto Global de las subcarpetas de la 00
+        # Cargar el contexto global corporativo compartido (.md)
         contexto_auto = cargar_markdown("00_SHARED_KNOWLEDGE/Automotive/automotive_rules.md")
         contexto_copy = cargar_markdown("00_SHARED_KNOWLEDGE/Copywriting/copywriting_guidelines.md")
         contexto_media = cargar_markdown("00_SHARED_KNOWLEDGE/Social_Media/media_specs.md")
         contexto_global = f"\n{contexto_auto}\n{contexto_copy}\n{contexto_media}"
         
-        # Animación de progreso en tiempo real
-        with st.status("Tu equipo de agentes está trabajando...", expanded=True) as status:
+        # Flujo de ejecución secuencial de agentes
+        with st.status("Ejecutando pipeline y procesando imágenes en lote...", expanded=True) as status:
             
             # FASE 1: Creative Director Pro
-            st.write("👤 **[1/4] Ejecutando:** Creative Director Pro...")
+            st.write("👤 **[1/5] Ejecutando:** Creative Director Pro...")
             kb_director = cargar_markdown("01_CREATIVE_DIRECTOR/creative_director_pro.md")
-            brief = llamar_gema(kb_director + contexto_global, idea_usuario)
+            brief = llamar_gema_texto(kb_director + contexto_global, idea_usuario)
             
-            # FASE 2: Graphic Designer Pro (Toma el Brief resultante)
-            st.write("👤 **[2/4] Ejecutando:** Graphic Designer Pro...")
+            # FASE 2: Graphic Designer Pro
+            st.write("👤 **[2/5] Ejecutando:** Graphic Designer Pro...")
             kb_designer = cargar_markdown("02_GRAPHIC_DESIGNER/graphic_designer_pro.md")
-            arte = llamar_gema(kb_designer + contexto_global, f"Genera la dirección de arte basándote en este Brief:\n\n{brief}")
+            arte = llamar_gema_texto(kb_designer + contexto_global, f"Genera la dirección de arte basada en este Brief:\n\n{brief}")
             
-            # FASE 3: Copywriter Pro (Toma el Brief y la Dirección de Arte)
-            st.write("👤 **[3/4] Ejecutando:** Copywriter Pro...")
+            # FASE 3: Copywriter Pro
+            st.write("👤 **[3/5] Ejecutando:** Copywriter Pro...")
             kb_copy = cargar_markdown("06_COPYWRITER/copywriter_pro.md")
-            textos = llamar_gema(kb_copy + contexto_global, f"Escribe los copys usando:\nBrief:\n{brief}\n\nArte:\n{arte}")
+            textos = llamar_gema_texto(kb_copy + contexto_global, f"Escribe los copys usando:\nBrief:\n{brief}\n\nArte:\n{arte}")
             
-            # FASE 4: Image Prompt Engineer Pro (Toma la Dirección de Arte)
-            st.write("👤 **[4/4] Ejecutando:** Image Prompt Engineer Pro...")
-            kb_prompter = cargar_markdown("03_IMAGE_PROMPTS/image_prompt_engineer_pro.md")
-            prompts_imagenes = llamar_gema(kb_prompter + contexto_global, f"Genera los prompts de IA visual usando esta dirección de arte:\n\n{arte}")
+            # FASE 4: Visual Automation Expert
+            st.write("🤖 **[4/5] Ejecutando:** Visual Automation Expert...")
+            kb_visual = cargar_markdown("03_B_VISUAL_AUTOMATION/visual_automation_expert.md")
+            manifiesto_diseno = llamar_gema_texto(kb_visual + contexto_global, f"Genera las instrucciones técnicas usando:\nDirección de arte:\n{arte}\n\nCopies:\n{textos}")
             
-            status.update(label="🎉 ¡Entrega lista! Tus agentes han terminado el material.", state="complete", expanded=False)
+            # FASE 5: Motor Multimodal en Lote (Bucle sobre las imágenes del inventario)
+            st.write("📸 **[5/5] Ejecutando Procesamiento Multimodal en lote sobre imágenes...**")
+            reporte_imagenes = ""
             
-        # 4. Muestra de resultados finales en pestañas interactivas
-        st.success("✨ Material publicitario generado con éxito:")
-        tab1, tab2, tab3, tab4 = st.tabs(["📝 Creative Brief", "🎨 Dirección de Arte", "✍️ Copies Persuasivos", "🖼️ Prompts de Imágenes"])
+            if len(imagenes_locales) == 0:
+                reporte_imagenes = "⚠️ No se encontraron archivos de imagen en la carpeta '00_INVENTORY_IMAGES/'. Por favor coloca tus fotos ahí."
+            else:
+                for idx, ruta_img in enumerate(imagenes_locales):
+                    nombre_archivo = os.path.basename(ruta_img)
+                    st.write(f"🔄 Procesando archivo ({idx+1}/{len(imagenes_locales)}): {nombre_archivo}")
+                    
+                    # Abrir la imagen del inventario local con Pillow
+                    imagen_pil = Image.open(ruta_img)
+                    
+                    # Llamar al modelo enviando el Manifiesto de Diseño + la Imagen Real del Auto
+                    instrucciones_render = f"""
+                    Usa las directrices del Manifiesto de Diseño adjunto para procesar esta imagen de inventario.
+                    Manifiesto:
+                    {manifiesto_diseno}
+                    
+                    Instrucción Crítica: Analiza el auto de la imagen, conserva su estructura, remueve su fondo original y descríbelo integrando el nuevo fondo conceptual e iluminación correspondiente a la marca según las especificaciones del canal de WhatsApp (1080x1920 px).
+                    """
+                    
+                    resultado_analisis = llamar_gema_multimodal(kb_visual + contexto_global, instrucciones_render, imagen_pil)
+                    
+                    reporte_imagenes += f"\n### 📊 Arte para archivo: {nombre_archivo}\n{resultado_analisis}\n---\n"
+            
+            status.update(label="🎉 ¡Ecosistema finalizado con éxito!", state="complete", expanded=False)
+            
+        # 4. Despliegue en pestañas organizadas dentro de la UI
+        st.success("✨ Entregables creativos y técnicos listos:")
+        tab1, tab2, tab3, tab4, tab5 = st.tabs([
+            "📝 Creative Brief", 
+            "🎨 Dirección de Arte", 
+            "✍️ Copies Persuasivos", 
+            "📐 Manifiesto de Estilos",
+            "🖼️ Procesamiento de Imágenes"
+        ])
         
         with tab1:
             st.markdown(brief)
@@ -91,4 +145,6 @@ if st.button("🚀 Iniciar Trabajo en Cadena"):
         with tab3:
             st.markdown(textos)
         with tab4:
-            st.markdown(prompts_imagenes)
+            st.markdown(manifiesto_diseno)
+        with tab5:
+            st.markdown(reporte_imagenes)
