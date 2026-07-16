@@ -31,7 +31,7 @@ def cargar_markdown(ruta_relativa):
 def llamar_gema_texto(prompt_sistema, entrada_usuario):
     """Conexión estándar para las gemas estratégicas de texto"""
     model = genai.GenerativeModel(
-        model_name="gemini-2.5-flash",
+        model_name="gemini-3.5-flash",
         system_instruction=prompt_sistema
     )
     response = model.generate_content(entrada_usuario)
@@ -40,7 +40,7 @@ def llamar_gema_texto(prompt_sistema, entrada_usuario):
 def llamar_gema_multimodal(prompt_sistema, entrada_texto, objeto_imagen):
     """Conexión avanzada con el modelo para procesar la imagen del vehículo real"""
     model = genai.GenerativeModel(
-        model_name="gemini-2.5-flash",
+        model_name="gemini-3.5-flash",
         system_instruction=prompt_sistema
     )
     response = model.generate_content([entrada_texto, objeto_imagen])
