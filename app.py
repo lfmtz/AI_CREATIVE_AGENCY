@@ -1,53 +1,30 @@
 import os
-import glob
 import time
+import glob
 from PIL import Image
 import streamlit as st
 import google.generativeai as genai
 from rembg import remove
 
-# Configuración visual de la plataforma web
-st.set_page_config(page_title="Agencia IA - Motor Multimodal Real", page_icon="🚀", layout="wide")
+# Configuración de página universal
+st.set_page_config(page_title="Agencia Creativa IA Universal", page_icon="🚀", layout="wide")
 
 st.title("🤖 Ecosistema de Coworking - Agencia Creativa IA")
-st.subheader("Orquestador Multimodal: Edición y Generación de Artes Reales en Lote")
+st.subheader("Orquestador Multimodal Adaptable: Post, Historias y Banners a la Carta")
 
-# 1. Configuración de API Key en la barra lateral
+# Barra lateral para credenciales
 st.sidebar.header("🔑 Configuración")
 api_key = st.sidebar.text_input("Introduce tu Gemini API Key:", type="password")
 st.sidebar.markdown("[¿Cómo obtener una API Key gratis?](https://aistudio.google.com/)")
 
-# --- BUSCADOR UNIVERSAL INMUNE A FALLOS EN LA NUBE ---
+# Definición de rutas directa adaptada a Streamlit Cloud
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+INVENTORY_DIR = os.path.join(BASE_DIR, "00_INVENTORY_IMAGES")
 OUTPUT_DIR = os.path.join(BASE_DIR, "10_PROJECTS", "Campana_Automatizada")
 
-# Intentar encontrar la carpeta del inventario buscando en múltiples niveles posibles
-posibles_rutas = [
-    os.path.join(BASE_DIR, "00_INVENTORY_IMAGES"),
-    os.path.join(BASE_DIR, "..", "00_INVENTORY_IMAGES"),
-    "/mount/src/ai_creative_agency/00_INVENTORY_IMAGES",
-    "00_INVENTORY_IMAGES"
-]
-
-INVENTORY_DIR = posibles_rutas[0] # Ruta por defecto
-for ruta in posibles_rutas:
-    if os.path.exists(ruta):
-        INVENTORY_DIR = ruta
-        break
-
-# Asegurar que la carpeta exista físicamente en el servidor
+# Garantizar que la carpeta exista
 os.makedirs(INVENTORY_DIR, exist_ok=True)
-
-# Escaneo ultra-preciso de archivos de imagen
-imagenes_locales = []
-for archivo in os.listdir(INVENTORY_DIR):
-    if archivo.lower().endswith(('.png', '.jpg', '.jpeg')) and not archivo.startswith('.'):
-        imagenes_locales.append(os.path.join(INVENTORY_DIR, archivo))
-
-# Mostrar diagnóstico en la barra lateral para saber la ruta exacta real
-st.sidebar.markdown(f"📁 **Ruta activa:** `{os.path.basename(INVENTORY_DIR)}`")
-st.sidebar.markdown(f"📦 **Inventario detectado:** {len(imagenes_locales)} imágenes.")
-
+os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 def cargar_markdown(ruta_relativa):
     ruta_completa = os.path.join(BASE_DIR, ruta_relativa)
@@ -59,13 +36,10 @@ def cargar_markdown(ruta_relativa):
 def llamar_gema_texto(prompt_sistema, entrada_usuario):
     ultimo_error = None
     # Probamos los modelos principales de texto en cascada
-    for model_name in ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.0-flash", "gemini-2.5-flash"]:
+    for model_name in ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.0-flash", "gemini-1.5-flash"]:
         for intento in range(3):
             try:
-                model = genai.GenerativeModel(
-                    model_name=model_name,
-                    system_instruction=prompt_sistema
-                )
+                model = genai.GenerativeModel(model_name=model_name, system_instruction=prompt_sistema)
                 response = model.generate_content(entrada_usuario)
                 return response.text
             except Exception as e:
@@ -82,64 +56,83 @@ def llamar_gema_texto(prompt_sistema, entrada_usuario):
     st.error(f"❌ Todos los modelos de texto de Gemini fallaron. Último error: {str(ultimo_error)}")
     raise ultimo_error
 
-# Caja de texto para la orden del usuario
+# Cuadro de texto libre para cualquier canal o red social
 idea_usuario = st.text_area(
-    "💡 Describe tu requerimiento o campaña:",
-    placeholder="Ej: Necesito una imagen para mi estado de WhatsApp de una RAM 1200 chasis con fondo alusivo a la marca..."
+    "💡 ¿Qué pieza publicitaria necesitas hoy?",
+    placeholder="Ej: Necesito una imagen para mi historia en whatsapp, esta debe de ir vertical, la camioneta horizontal, con un fondo alusivo al trabajo en ram y que diga Ram 1200 chasis y que diga prueba de éxito..."
 )
 
-# (Escaneo realizado con éxito mediante el buscador universal en el inicio de la app)
+# Escaneo directo inmune a fallos de entorno virtualizado y case-insensitive
+imagenes_locales = []
+if os.path.exists(INVENTORY_DIR):
+    for f in os.listdir(INVENTORY_DIR):
+        if f.lower().endswith(('.png', '.jpg', '.jpeg')) and not f.startswith('.'):
+            imagenes_locales.append(os.path.join(INVENTORY_DIR, f))
 
-if st.button("🚀 Iniciar Trabajo en Cadena Multimodal"):
+st.sidebar.markdown(f"📦 **Inventario en la nube:** {len(imagenes_locales)} imágenes detectadas.")
+
+if st.button("🚀 Iniciar Cadena Multimodal"):
     if not api_key:
         st.error("Por favor, introduce tu Gemini API Key en la barra lateral.")
     elif not idea_usuario:
-        st.warning("Escribe una orden antes de ejecutar.")
+        st.warning("Por favor, escribe las instrucciones de tu post, banner o historia.")
     else:
         try:
             genai.configure(api_key=api_key)
-            os.makedirs(OUTPUT_DIR, exist_ok=True)
             
+            # Cargar base de conocimiento
             contexto_auto = cargar_markdown("00_SHARED_KNOWLEDGE/Automotive/automotive_rules.md")
             contexto_copy = cargar_markdown("00_SHARED_KNOWLEDGE/Copywriting/copywriting_guidelines.md")
             contexto_media = cargar_markdown("00_SHARED_KNOWLEDGE/Social_Media/media_specs.md")
             contexto_global = f"\n{contexto_auto}\n{contexto_copy}\n{contexto_media}"
             
-            with st.status("Ejecutando agentes y procesando artes en lote...", expanded=True) as status:
+            # --- DETECCIÓN INTELIGENTE DE MEDIDAS Y RELACIÓN DE ASPECTO ---
+            texto_analisis = idea_usuario.lower()
+            if any(w in texto_analisis for w in ["historia", "whatsapp", "story", "vertical", "reel"]):
+                aspecto_ia = "9:16"
+                ancho_canvas, alto_canvas = 1080, 1920
+                tipo_formato = "Historia / Estado Vertical"
+            elif any(w in texto_analisis for w in ["banner", "horizontal", "portada", "web"]):
+                aspecto_ia = "16:9"
+                ancho_canvas, alto_canvas = 1920, 1080
+                tipo_formato = "Banner Horizontal"
+            else:
+                # Por defecto genera formato cuadrado adaptable para posts de Facebook/Instagram
+                aspecto_ia = "1:1"
+                ancho_canvas, alto_canvas = 1080, 1080
+                tipo_formato = "Post Cuadrado Tradicional"
+
+            with st.status(f"Procesando formato: {tipo_formato}...", expanded=True) as status:
                 
-                # FASE 1: Director Creativo (Estrategia rápida si es requerida)
-                st.write("👤 **[1/5] Ejecutando:** Creative Director Pro...")
+                # FASE 1: Director Creativo
+                st.write("👤 **[1/5] Executing:** Creative Director Pro...")
                 time.sleep(2)
                 kb_director = cargar_markdown("01_CREATIVE_DIRECTOR/creative_director_pro.md")
                 brief = llamar_gema_texto(kb_director + contexto_global, idea_usuario)
                 
-                # FASE 2: Diseñador Gráfico (Dirección de Arte y especificación de fondo)
-                st.write("🎨 **[2/5] Ejecutando:** Graphic Designer Pro...")
+                # FASE 2: Diseñador Gráfico (Dirección de Arte adaptable)
+                st.write("🎨 **[2/5] Executing:** Graphic Designer Pro...")
                 time.sleep(2)
                 kb_designer = cargar_markdown("02_GRAPHIC_DESIGNER/graphic_designer_pro.md")
-                arte = llamar_gema_texto(kb_designer + contexto_global, f"Crea las directrices visuales del fondo ideal de la marca para esta solicitud: {idea_usuario}")
+                arte = llamar_gema_texto(kb_designer + contexto_global, f"Define los colores y el estilo visual para un formato {tipo_formato} basado en: {idea_usuario}")
                 
-                # FASE 3: Copywriter Pro (Redacta el copy solicitado)
-                st.write("✍️ **[3/5] Ejecutando:** Copywriter Pro...")
+                # FASE 3: Copywriter Pro
+                st.write("✍️ **[3/5] Executing:** Copywriter Pro...")
                 time.sleep(2)
                 kb_copy = cargar_markdown("06_COPYWRITER/copywriter_pro.md")
-                textos = llamar_gema_texto(kb_copy + contexto_global, f"Redacta el copy solicitado en la orden: {idea_usuario}")
+                textos = llamar_gema_texto(kb_copy + contexto_global, f"Genera los copies y textos integrados exactos solicitados para este formato: {idea_usuario}")
                 
-                # FASE 4: Visual Automation Expert (Crea el Prompt para el Generador de Fondos)
-                st.write("📐 **[4/5] Ejecutando:** Visual Automation Expert...")
+                # FASE 4: Visual Automation Expert (Prompt del Fondo)
+                st.write("📐 **[4/5] Executing:** Visual Automation Expert...")
                 time.sleep(2)
                 kb_visual = cargar_markdown("03_B_VISUAL_AUTOMATION/visual_automation_expert.md")
-                manifiesto_diseno = llamar_gema_texto(kb_visual + contexto_global, f"Escribe un prompt fotográfico ultra-detallado de 1080x1920 px para generar SOLO EL FONDO de la marca solicitada basándote en: {arte}. No incluyas ningún coche en la descripción del fondo.")
+                manifiesto_diseno = llamar_gema_texto(kb_visual + contexto_global, f"Escribe un prompt de generación de imagen para el FONDO comercial de la marca en relación {aspecto_ia}. Instrucciones: {idea_usuario}. No incluyas vehículos en la descripción.")
                 
-                # FASE 5: Motor de Montaje Físico (Nanobana + Pillow + rembg)
+                # FASE 5: Composición Multimodal Real y Universal
                 lista_artes_finales = []
-                # FASE 5: Motor de Montaje Físico (Nanobana + Pillow + rembg)
-                st.write("📸 **[5/5] Renderizando fondos con Nanobana...**")
+                st.write(f"🌌 Generando fondo premium adaptado ({aspecto_ia}) con Nanobana...")
                 time.sleep(2)
-                
                 try:
-                    # 1. Generamos el fondo corporativo premium una sola vez para la marca solicitada
-                    st.write("🌌 Generando fondo de marca de alta gama con Imagen 3...")
                     imagen_modelo = genai.ImageGenerationModel("imagen-3.0-generate-002")
                     
                     resultado_fondo = None
@@ -147,9 +140,9 @@ if st.button("🚀 Iniciar Trabajo en Cadena Multimodal"):
                     for intento in range(3):
                         try:
                             resultado_fondo = imagen_modelo.generate_images(
-                                prompt=f"A professional, commercial-grade background, vertical format (1080x1920 px), clean studio or outdoor setting designed for a car advertisement. Description: {manifiesto_diseno}",
+                                prompt=f"A professional high-end commercial ad background, layout {aspecto_ia}, sharp focus, studio lighting. Description: {manifiesto_diseno}",
                                 number_of_images=1,
-                                aspect_ratio="9:16"
+                                aspect_ratio=aspecto_ia
                             )
                             break
                         except Exception as img_err:
@@ -164,61 +157,49 @@ if st.button("🚀 Iniciar Trabajo en Cadena Multimodal"):
                     if resultado_fondo is None:
                         raise ultimo_err_imagen
                     
-                    # Guardamos el fondo maestro generado por la IA
-                    ruta_fondo_maestro = os.path.join(OUTPUT_DIR, "fondo_generado_maestro.png")
-                    resultado_fondo.images[0].save(ruta_fondo_maestro)
+                    ruta_fondo = os.path.join(OUTPUT_DIR, "fondo_base.png")
+                    resultado_fondo.images[0].save(ruta_fondo)
                     
-                    # Si hay imágenes en el inventario, hacemos la fusión física
                     if len(imagenes_locales) > 0:
-                        fondo_maestro = Image.open(ruta_fondo_maestro).convert("RGBA")
-                        # Procesamos cada carro del inventario en lote
+                        fondo_maestro = Image.open(ruta_fondo).convert("RGBA")
+                        fondo_maestro = fondo_maestro.resize((ancho_canvas, alto_canvas))
+                        
                         for idx, ruta_img in enumerate(imagenes_locales):
                             nombre_archivo = os.path.basename(ruta_img)
-                            st.write(f"✂️ Removiendo fondo y montando vehículo ({idx+1}/{len(imagenes_locales)}): {nombre_archivo}")
+                            st.write(f"✂️ Extrayendo y fusionando vehículo sobre {tipo_formato}: {nombre_archivo}")
                             
-                            # Abrimos el coche real
-                            img_auto_original = Image.open(ruta_img).convert("RGBA")
+                            img_original = Image.open(ruta_img).convert("RGBA")
+                            img_recortada = remove(img_original)
                             
-                            # Recortamos el fondo original de tu coche usando la librería rembg
-                            img_auto_recortado = remove(img_auto_original)
-                            
-                            # Redimensionamos el coche recortado para que quepa estéticamente en el lienzo vertical (1080x1920)
-                            ancho_canvas, alto_canvas = fondo_maestro.size
-                            img_auto_recortado.thumbnail((ancho_canvas * 0.9, alto_canvas * 0.4))
-                            
-                            # Creamos una copia del fondo maestro para no encimar los carros uno sobre otro
+                            # Ajustar el tamaño del coche de forma proporcional al lienzo elegido
+                            if aspecto_ia == "9:16":
+                                img_recortada.thumbnail((ancho_canvas * 0.9, alto_canvas * 0.35))
+                                pos_x = int((ancho_canvas - img_recortada.width) / 2)
+                                pos_y = int(alto_canvas * 0.55)
+                            else:
+                                img_recortada.thumbnail((ancho_canvas * 0.65, alto_canvas * 0.6))
+                                pos_x = int((ancho_canvas - img_recortada.width) / 2)
+                                pos_y = int((alto_canvas - img_recortada.height) / 2)
+                                
                             canvas_final = fondo_maestro.copy()
+                            canvas_final.paste(img_recortada, (pos_x, pos_y), img_recortada)
                             
-                            # Calculamos la posición para centrar el auto en la mitad inferior
-                            pos_x = int((ancho_canvas - img_auto_recortado.width) / 2)
-                            pos_y = int(alto_canvas * 0.5)  # Posición vertical centrada-baja
-                            
-                            # Fusionamos el coche sobre el fondo de la marca
-                            canvas_final.paste(img_auto_recortado, (pos_x, pos_y), img_auto_recortado)
-                            
-                            # Guardamos el archivo final descargable
-                            ruta_salida_final = os.path.join(OUTPUT_DIR, f"arte_final_{nombre_archivo}")
-                            canvas_final.save(ruta_salida_final)
-                            
-                            lista_artes_finales.append((f"🎯 Arte Terminado para {nombre_archivo}", ruta_salida_final))
+                            ruta_salida = os.path.join(OUTPUT_DIR, f"arte_final_{nombre_archivo}")
+                            canvas_final.save(ruta_salida)
+                            lista_artes_finales.append((f"🎯 Arte Terminado ({tipo_formato}): {nombre_archivo}", ruta_salida))
                     else:
-                        # Si no hay imágenes en el inventario, entregamos el fondo generado directamente
                         st.info("ℹ️ No se detectaron coches en el inventario. Entregando el fondo de marca premium generado.")
-                        lista_artes_finales.append(("🎯 Fondo de Marca Premium Generado (Listo para montaje)", ruta_fondo_maestro))
+                        lista_artes_finales.append((f"🎯 Fondo de Marca Premium Generado ({tipo_formato})", ruta_fondo))
                         
                 except Exception as e:
-                    st.error(f"Error en el motor de montaje o generación: {str(e)}")
-                    
-                status.update(label="🎉 ¡Procesamiento de catálogo finalizado con éxito!", state="complete", expanded=False)
+                    st.error(f"Error en el motor visual: {str(e)}")
                 
-            # Despliegue en pestañas organizadas dentro de la UI
+                status.update(label="🎉 ¡Entrega universal finalizada con éxito!", state="complete", expanded=False)
+                
+            # Despliegue de resultados organizados
             st.success("✨ Tus entregables solicitados están listos:")
             tab1, tab2, tab3, tab4, tab5 = st.tabs([
-                "📝 Estrategia/Brief", 
-                "🎨 Dirección de Arte", 
-                "✍️ Copies Solicitados", 
-                "📐 Especificaciones Técnicas",
-                "🖼️ Catálogo de Artes Listas para WhatsApp"
+                "📝 Estrategia/Brief", "🎨 Dirección de Arte", "✍️ Copies Solicitados", "📐 Especificaciones Técnicas", "🖼️ Arte Publicitario Terminado"
             ])
             
             with tab1: st.markdown(brief)
@@ -227,13 +208,13 @@ if st.button("🚀 Iniciar Trabajo en Cadena Multimodal"):
             with tab4: st.markdown(manifiesto_diseno)
             with tab5:
                 if lista_artes_finales:
-                    st.info("💡 ¡Haz clic derecho sobre cualquier arte para guardarla y subirla a tus estados!")
+                    st.info("💡 ¡Haz clic derecho sobre el arte para guardarla directamente!")
                     for titulo, ruta_final in lista_artes_finales:
                         st.subheader(titulo)
-                        st.image(ruta_final, width=360)
+                        st.image(ruta_final)
                         st.markdown("---")
                 else:
-                    st.info("Coloca fotos en '00_INVENTORY_IMAGES/' para activar el catálogo visual.")
+                    st.info("No se procesaron imágenes debido a un problema con el archivo base.")
         except Exception as main_err:
             st.error("💥 **Error Crítico en la ejecución del pipeline:**")
             status_code = getattr(main_err, 'status_code', None) or getattr(main_err, 'code', None)
