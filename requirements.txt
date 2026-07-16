@@ -1,4 +1,6 @@
-streamlit
 google-generativeai
 google-genai
-Pillow
+streamlit
+pillow
+rembg
+onnxruntime
